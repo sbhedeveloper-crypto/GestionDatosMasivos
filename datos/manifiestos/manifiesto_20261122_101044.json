@@ -1,0 +1,30 @@
+{
+  "fecha_ejecucion": "2026-11-22T10:10:44.544658",
+  "url": "https://api.worldbank.org/v2",
+  "desde": "2000",
+  "hasta": "2026",
+  "parametros": {
+    "paises": [
+      "COL",
+      "BRA",
+      "MEX",
+      "CHL",
+      "PER",
+      "ARG",
+      "USA",
+      "WLD"
+    ],
+    "indicadores": [
+      "FP.CPI.TOTL.ZG",
+      "SL.UEM.TOTL.ZS",
+      "NY.GDP.MKTP.KD.ZG"
+    ],
+    "pagina_inicial": 1,
+    "tamano_pagina": 1000
+  },
+  "total_registros": 624,
+  "archivos_generados": [
+    "datos\\raw\\fecha_ingesta=2026-11-22\\indicadores_parte_1.jsonl"
+  ],
+  "estado": "exitoso"
+}

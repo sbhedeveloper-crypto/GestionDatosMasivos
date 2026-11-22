@@ -8,10 +8,11 @@ import os
 from pathlib import Path
 
 import pandas as pd
+import pg8000
 from sqlalchemy import create_engine, text
 
 POSTGRES_HOST = os.getenv("POSTGRES_HOST", "localhost")
-POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", "5432"))
 POSTGRES_DB = os.getenv("POSTGRES_DB", "indicadores")
 POSTGRES_USER = os.getenv("POSTGRES_USER", "pipeline")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "pipeline")
@@ -29,6 +30,19 @@ def engine_postgres():
         f"@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
     )
     return create_engine(url)
+
+
+def conectar_pg8000():
+    """
+    Devuelve una conexión pg8000 directa (útil para pd.read_sql_query sin SQLAlchemy).
+    """
+    return pg8000.connect(
+        host=POSTGRES_HOST,
+        port=POSTGRES_PORT,
+        database=POSTGRES_DB,
+        user=POSTGRES_USER,
+        password=POSTGRES_PASSWORD,
+    )
 
 
 def crear_esquema(engine) -> None:
@@ -62,6 +76,9 @@ def cargar_desde_parquet(engine, ruta_parquet: str) -> int:
 
 
 def consultar_ultimos(engine, limite: int = 50) -> pd.DataFrame:
+    """
+    Consulta los últimos registros usando un engine SQLAlchemy.
+    """
     query = f"""
     SELECT indicador, pais, valor, fecha, fuente, fecha_curado
     FROM indicadores_servicio
@@ -69,6 +86,47 @@ def consultar_ultimos(engine, limite: int = 50) -> pd.DataFrame:
     LIMIT {limite};
     """
     return pd.read_sql(query, engine)
+
+
+def consultar_ultimos_pg8000(limite: int = 50) -> pd.DataFrame:
+    """
+    Consulta los últimos registros usando pg8000 directamente (sin SQLAlchemy).
+    Ideal para pandas en Windows.
+    """
+    conn = conectar_pg8000()
+    try:
+        query = f"""
+        SELECT indicador, pais, valor, fecha, fuente, fecha_curado
+        FROM indicadores_servicio
+        ORDER BY fecha DESC, indicador
+        LIMIT {limite};
+        """
+        df = pd.read_sql_query(query, conn)
+        return df
+    finally:
+        conn.close()
+
+
+def consultar_agregados_pg8000() -> pd.DataFrame:
+    """
+    Consulta agregados por indicador, país, año y mes usando pg8000 directamente.
+    """
+    conn = conectar_pg8000()
+    try:
+        query = """
+        SELECT indicador, pais, anio, mes,
+               AVG(valor) AS valor_promedio,
+               MIN(valor) AS valor_min,
+               MAX(valor) AS valor_max,
+               COUNT(*) AS n_registros
+        FROM indicadores_servicio
+        GROUP BY indicador, pais, anio, mes
+        ORDER BY indicador, pais, anio, mes;
+        """
+        df = pd.read_sql_query(query, conn)
+        return df
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

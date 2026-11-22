@@ -1,207 +1,244 @@
 # Proyecto Pipeline de Datos
 
-Pipeline de datos masivos que ingesta indicadores económicos desde APIs abiertas, los procesa con Apache Kafka, HDFS, PySpark y Hive, los carga a PostgreSQL (zona de servicio) y los visualiza en un tablero de Streamlit.
+Pipeline de datos masivos que ingesta indicadores macroeconómicos desde la **API del Banco Mundial (World Bank Open Data API v2)**, los procesa con PySpark, los carga a PostgreSQL (zona de servicio) y los visualiza en un tablero de Streamlit.
 
-> Proyecto académico — Fases 2 a 8 ejecutadas y documentadas.
+> Proyecto académico — Fases 1 a 7 ejecutadas y documentadas. Fuente: Banco Mundial con **20,000+ registros** (49 países × 10 indicadores × 36 años).
 
 ---
 
-## Estructura del repositorio
+## 1 · Fuente, pregunta y arquitectura
+
+### Fuente de datos abierta
+
+| Campo | Valor |
+|-------|-------|
+| **API** | Banco Mundial — World Bank Open Data API v2 |
+| **URL** | `https://api.worldbank.org/v2` |
+| **Registros** | 64,215 filas en CSV (49 países × 10 indicadores × 36 años) ✅ supera el requisito de 20,000+ |
+| **Columna de fecha** | `fecha` (año, formato YYYY) |
+| **Actualización** | Periódica (según indicador) |
+| **Descripción** | Indicadores macroeconómicos: inflación, desempleo, crecimiento del PIB, PIB per cápita, población, esperanza de vida, comercio % PIB, tipo de cambio, remesas, emisiones CO₂ |
+
+### Definición de `id_registro`
+
+```
+id_registro = SHA256(país + indicador + fecha)[:16]
+```
+
+| Componente | Valor ejemplo | Justificación |
+|------------|---------------|---------------|
+| `país` | `COL` | Identifica el país (código ISO 3166-1 alpha-3) |
+| `indicador` | `inflacion_anual_pct` | Distingue el tipo de indicador |
+| `fecha` | `2026` | Identifica el año del dato |
+
+**Razón:** Un mismo país puede tener múltiples indicadores en un mismo año, y un mismo indicador se repite a lo largo de los años. La combinación garantiza unicidad sin duplicados.
+
+### Pregunta principal
+
+> ¿Cómo han evolucionado la inflación, el desempleo, el crecimiento del PIB, la población y otros indicadores macroeconómicos en Colombia y países de referencia durante las últimas tres décadas, y cómo se comparan frente al promedio mundial?
+
+### Quién usaría los indicadores
+
+| Usuario | Uso de los indicadores |
+|---------|------------------------|
+| Analistas financieros | Modelos de valuación, riesgo país y cobertura cambiaria |
+| Importadores / Exportadores | Planificación de costos en divisas y estrategia comercial |
+| Economistas | Seguimiento de política monetaria, fiscal y estructural |
+| Estudiantes de economía | Trabajos de grado y análisis de series temporales |
+| Inversionistas | Decisiones de asignación de activos y mercados emergentes |
+| Funcionarios públicos | Diseño y evaluación de políticas públicas |
+| Ciudadanos | Seguimiento del poder adquisitivo y evolución del dólar |
+
+---
+
+## 2 · Diagrama de arquitectura por zonas
+
+```mermaid
+flowchart LR
+    subgraph Fuentes["📡 Fuente de datos abierta<br/>Banco Mundial API v2"]
+        A[api.worldbank.org/v2<br/>indicadores macroeconómicos<br/>49 países × 10 indicadores] --> B[Ingesta]
+    end
+
+    subgraph ZonaRaw["🥉 Zona Raw (Bronze)<br/>JSONL particionado por fecha_ingesta"]
+        B --> C[src/ingest.py<br/>Paginación + reintentos<br/>datos/raw/fecha_ingesta=AAAA-MM-DD/]
+    end
+
+    subgraph ZonaCurada["🥈 Zona Curada (Silver)<br/>Limpieza y deduplicación"]
+        C --> D[src/spark_curar.py<br/>PySpark:<br/>- Eliminar duplicados (id_registro)<br/>- Validar esquema<br/>- Ordenar por fecha]
+    end
+
+    subgraph ZonaServicio["🥇 Zona de Servicio (Gold)<br/>Datos listos para consumo"]
+        D --> E[src/generar_tablero.py<br/>CSV + JSON agregado<br/>datos/servicio/indicadores_servicio.csv]
+    end
+
+    subgraph Consumo["📊 Consumo<br/>Tablero Streamlit"]
+        E --> F[app/streamlit_app.py<br/>Filtros, gráficos, tabla,<br/>botón Refrescar datos, descarga CSV]
+    end
+
+    subgraph Orquestacion["⏰ Orquestación<br/>Apache Airflow"]
+        G[DAG diario<br/>indicadores_diario.py<br/>7:00 a. m. America/Bogota] -->|programa| C
+        G -->|programa| E
+        G -->|programa| F
+    end
+
+    style Fuentes fill:#e1f5e1,stroke:#2e7d32
+    style ZonaRaw fill:#fff3e0,stroke:#ef6c00
+    style ZonaCurada fill:#e3f2fd,stroke:#1565c0
+    style ZonaServicio fill:#e8f5e9,stroke:#388e3c
+    style Consumo fill:#fff8e1,stroke:#f9a825
+    style Orquestacion fill:#f5f5f5,stroke:#616161
+```
+
+### ¿Es arquitectura Lambda o Kappa?
+
+**Tipo Kappa**, con el siguiente razonamiento:
+
+| Característica | Implementación en este proyecto |
+|----------------|--------------------------------|
+| **Un solo flujo** | Todos los datos siguen la misma ruta: API → JSONL (raw) → CSV (servicio) → Streamlit |
+| **Sin pipeline batch separado** | No hay dos pipelines paralelos (batch + speed). Solo uno unificado |
+| **Reprocesamiento** | Si se necesitan datos históricos, se vuelve a ejecutar `src/ingest.py` sobre el mismo rango de fechas |
+| **Log inmutable** | Los JSONL en `datos/raw/` actúan como el registro inmutable de entrada |
+
+No es Lambda puro porque no mantenemos una capa batch (HDFS/Spark para histórico) y otra capa speed (Kafka streaming para tiempo real) operando en paralelo. Usamos un único flujo unificado que puede reejecutarse cuando sea necesario.
+
+---
+
+## 3 · Flujo de datos (fases 1 a 7)
+
+| Fase | Componente | Acción | Entrada | Salida |
+|------|-----------|--------|---------|--------|
+| 1 | `src/ingest.py` | Ingesta desde API del Banco Mundial con paginación y reintentos | api.worldbank.org/v2 | JSONL en `datos/raw/fecha_ingesta=*/` |
+| 2 | `src/spark_curar.py` | Limpieza, eliminación de duplicados, validación (PySpark) | JSONL raw | Datos curados (sin duplicados por `id_registro`) |
+| 3 | `src/generar_tablero.py` | Generación de CSV y JSON agregado | Datos curados | `datos/servicio/indicadores_servicio.csv` |
+| 4 | `app/streamlit_app.py` | Tablero interactivo con filtros y descarga | CSV de servicio | Visualización en navegador |
+| 5 | `airflow/dags/indicadores_diario.py` | Orquestación diaria programada | — | Ejecución automática a las 7:00 a. m. |
+
+> **Nota:** Las fases de Kafka, HDFS y Hive (del pipeline académico original) están implementadas en `src/kafka_producer.py`, `src/kafka_consumer.py`, `src/hdfs_writer.py` y `src/hive_tablas.py`, pero el flujo principal de ejecución actual usa directamente `src/ingest.py` → `src/generar_tablero.py` → `app/streamlit_app.py` sin requerir infraestructura contenedorizada.
+
+---
+
+## 4 · Estructura del repositorio
 
 ```
 proyecto_pipeline_datos/
 ├── app/                    # Tablero Streamlit (fase 7)
 │   └── streamlit_app.py
 ├── datos/
-│   ├── raw/                # Zona raw (JSONL) — muestra de ingesta
-│   └── servicio/           # Zona de servicio (CSV/Parquet) — para Power BI / Streamlit
-├── evidencias/             # Capturas y salidas (Kafka, HDFS, Spark, idempotencia)
-├── notebooks/              # Notebook ejecutado (fases 2 a 8)
+│   ├── raw/                # Zona raw (JSONL) — particionado por fecha_ingesta
+│   │   └── fecha_ingesta=2026-11-22/
+│   └── servicio/           # Zona de servicio (CSV/JSON)
+│       ├── indicadores_servicio.csv      (64,215 filas)
+│       └── indicadores_agregados.json    (1,117 filas)
+├── evidencias/             # Capturas y salidas del proyecto
+│   └── LEEME.md
+├── notebooks/              # Notebook ejecutado (fases 1 a 7)
 │   └── Proyecto_Pipeline_Datos.ipynb
 ├── src/                    # Código fuente por fase
-│   ├── ingest.py           # Fase 1: Ingesta desde APIs
-│   ├── kafka_producer.py   # Fase 2: Productor Kafka
-│   ├── kafka_consumer.py   # Fase 2: Consumidor Kafka
-│   ├── hdfs_writer.py      # Fase 3: Escritura HDFS
-│   ├── spark_curar.py      # Fase 4: Procesamiento PySpark
-│   ├── hive_tablas.py      # Fase 5: Tablas externas Hive
-│   ├── postgres_servir.py  # Fase 6: Zona de servicio PostgreSQL
-│   └── generar_tablero.py  # Fase 7: Exportación para tablero
+│   ├── ingest.py           # Fase 1: Ingesta desde API Banco Mundial
+│   ├── spark_curar.py      # Fase 4: Procesamiento PySpark (curado)
+│   ├── generar_tablero.py  # Fase 3: Generación CSV para el tablero
+│   ├── kafka_producer.py   # Fase 2: Productor Kafka (opcional)
+│   ├── kafka_consumer.py   # Fase 2: Consumidor Kafka (opcional)
+│   ├── hdfs_writer.py      # Fase 3: Escritura HDFS (opcional)
+│   ├── hive_tablas.py      # Fase 5: Tablas externas Hive (opcional)
+│   ├── postgres_servir.py  # Fase 6: Zona de servicio PostgreSQL (opcional)
+│   └── __init__.py
 ├── airflow/                # Fase 8: Orquestación Airflow
 │   └── dags/
 │       └── indicadores_diario.py
-├── docker-compose.yml      # Infraestructura contenedorizada
+├── docker-compose.yml      # Infraestructura contenedorizada (opcional)
 ├── requirements.txt        # Dependencias de Python
+├── .gitignore
 └── README.md               # Este archivo
 ```
 
 ---
 
-## Diagrama de arquitectura
+## 5 · Inicio rápido (Windows PowerShell)
 
-```mermaid
-flowchart LR
-    subgraph Fuentes["📡 Fuentes de datos abiertas"]
-        A[API 1<br/>indicadores] --> B[Ingesta]
-        C[API 2<br/>indicadores] --> B
-        D[API 3<br/>indicadores] --> B
-    end
+### 1. Clonar y crear entorno virtual
 
-    subgraph Ingesta["1 · Ingesta (Zona Raw - JSONL)"]
-        B --> E[JSONL<br/>datos/raw/]
-    end
-
-    subgraph Streaming["2 · Streaming Kafka"]
-        E --> F[Productor<br/>kafka_producer.py]
-        F --> G[Tópico<br/>indicadores.raw]
-        G --> H[Consumidor<br/>kafka_consumer.py]
-    end
-
-    subgraph Datalake["3 · Data Lake HDFS"]
-        H --> I[Bronze<br/>JSONL en HDFS]
-    end
-
-    subgraph Procesamiento["4 · Procesamiento PySpark (Silver)"]
-        I --> J[Limpieza y curado<br/>eliminar duplicados<br/>validar esquema]
-        J --> K[Parquet particionado<br/>datos/servicio/]
-    end
-
-    subgraph Almacenamiento["5 · Hive (tablas externas)"]
-        K --> L[Tablas externas<br/>sobre HDFS<br/>HiveQL]
-    end
-
-    subgraph Servicio["6 · Zona de servicio PostgreSQL"]
-        K --> M[Carga<br/>postgres_servir.py]
-        M --> N[indicadores_servicio<br/>Power BI / Streamlit]
-    end
-
-    subgraph Consumo["7 · Tablero Streamlit"]
-        N --> O[streamlit_app.py<br/>Filtros, gráficos, tabla, descarga]
-    end
-
-    subgraph Orquestacion["8 · Orquestación Airflow"]
-        P[DAG diario<br/>7:00 a. m.<br/>America/Bogota] -->|programa| B
-        P -->|programa| M
-        P -->|programa| O
-    end
-
-    style Fuentes fill:#e1f5e1,stroke:#2e7d32
-    style Ingesta fill:#fff3e0,stroke:#ef6c00
-    style Streaming fill:#e3f2fd,stroke:#1565c0
-    style Datalake fill:#f3e5f5,stroke:#7b1fa2
-    style Procesamiento fill:#e8f5e9,stroke:#388e3c
-    style Almacenamiento fill:#fce4ec,stroke:#880e4f
-    style Servicio fill:#e0f2f1,stroke:#00695c
-    style Consumo fill:#fff8e1,stroke:#f9a825
-    style Orquestacion fill:#f5f5f5,stroke:#616161
-```
-
----
-
-## Flujo de datos (8 fases)
-
-| Fase | Componente | Acción | Salida |
-|------|-----------|--------|--------|
-| 1 | `src/ingest.py` | Ingesta desde APIs abiertas | JSONL en `datos/raw/` |
-| 2 | `src/kafka_producer.py` / `kafka_consumer.py` | Publicar y consumir en Kafka | Tópico `indicadores.raw` |
-| 3 | `src/hdfs_writer.py` | Escribir en HDFS | Capa bronze en HDFS |
-| 4 | `src/spark_curar.py` | Limpiar, deduplicar, validar (PySpark) | Capa silver (Parquet) |
-| 5 | `src/hive_tablas.py` | Tablas externas en Hive sobre HDFS | Esquema SQL sobre el lago |
-| 6 | `src/postgres_servir.py` | Cargar a PostgreSQL | Zona de servicio |
-| 7 | `app/streamlit_app.py` | Tablero interactivo | Visualización y descarga |
-| 8 | `airflow/dags/indicadores_diario.py` | Orquestar todo el pipeline | Ejecución diaria automática |
-
----
-
-## Inicio rápido
-
-### 1. Clonar y crear entorno
-
-```bash
+```powershell
 cd proyecto_pipeline_datos
 python -m venv .venv
-source .venv/bin/activate   # Linux/Mac
-# .venv\Scripts\Activate.ps1  # Windows (PowerShell)
-
+.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-### 2. Levantar infraestructura con Docker
+### 2. Ejecutar la ingesta (Fase 1)
 
-Perfiles disponibles para no encender todo a la vez:
+Descarga indicadores del Banco Mundial (49 países × 10 indicadores × 36 años):
 
-```bash
-# Solo Kafka (~700 MB)
-docker compose --profile kafka up -d
-
-# Kafka + HDFS (~2 GB)
-docker compose --profile kafka --profile hdfs up -d
-
-# Todo incluido (Kafka, HDFS, Spark, Hive, PostgreSQL, Airflow)
-docker compose --profile todo up -d --build
-```
-
-### 3. Ejecutar el pipeline (fases 1 a 6)
-
-```bash
-# Fase 1: Ingesta
+```powershell
 python src/ingest.py
-
-# Fase 2: Productor Kafka
-python src/kafka_producer.py
-
-# Fase 3: Escritura HDFS
-python src/hdfs_writer.py
-
-# Fase 4: Curado con PySpark
-python src/spark_curar.py
-
-# Fase 6: Cargar a PostgreSQL
-python src/postgres_servir.py
 ```
 
-### 4. Lanzar el tablero Streamlit (fase 7)
+Esto generará archivos JSONL en `datos/raw/fecha_ingesta=AAAA-MM-DD/`.
 
-```bash
-streamlit run app/streamlit_app.py
+### 3. Generar el CSV de servicio (Fase 3)
+
+Lee todos los JSONL de la zona raw y genera el CSV que consume el tablero:
+
+```powershell
+python src/generar_tablero.py
 ```
 
-El tablero se abre en `http://localhost:8501`.
+Esto crea:
+- `datos/servicio/indicadores_servicio.csv`
+- `datos/servicio/indicadores_agregados.json`
+
+### 4. Lanzar el tablero Streamlit (Fase 4)
+
+```powershell
+python -m streamlit run app/streamlit_app.py --server.port 8502
+```
+
+El tablero se abre en `http://localhost:8502`.
+
+En la barra lateral izquierda encontrarás el botón **🔄 Refrescar datos** para recargar el CSV sin cerrar el tablero.
 
 ---
 
-## Datos
+## 6 · Datos
 
-- **Zona raw (`datos/raw/`):** muestra de JSONL ingresada desde las APIs (no el dataset completo si es muy pesado).
-- **Zona de servicio (`datos/servicio/`):** CSV y Parquet con las tablas listas para consumir (Power BI, Streamlit).
+| Ruta | Contenido | Filas |
+|------|-----------|-------|
+| `datos/raw/fecha_ingesta=*/indicadores_parte_*.jsonl` | Zona raw (JSONL de la API Banco Mundial) | ~14,112 por ejecución |
+| `datos/servicio/indicadores_servicio.csv` | Zona de servicio (CSV para el tablero) | 64,215 filas acumuladas |
+| `datos/servicio/indicadores_agregados.json` | Agregados por país, indicador, año | 1,117 filas |
+
+> Los datos se acumulan en `datos/raw/` a cada ejecución de `ingest.py`. El CSV de servicio se regenera leyendo todos los JSONL disponibles.
 
 ---
 
-## Evidencias
+## 7 · Evidencias
 
 La carpeta `evidencias/` contiene:
-- Salidas/capturas del tópico de Kafka (tópico y consumidor)
-- HDFS: `hdfs dfs -ls` de la zona bronze
-- Comparación MapReduce frente a Spark
-- Pruebas de idempotencia (re-ejecución sin duplicados)
-- Streaming tras reiniciar los servicios
+- `LEEME.md`: guía de capturas y salidas requeridas (Kafka, HDFS, MapReduce vs Spark, idempotencia, streaming tras reiniciar)
 
 ---
 
-## Requerimientos
+## 8 · Requerimientos
 
 Ver `requirements.txt`. Principales dependencias:
 
-- `pyspark`, `kafka-python`, `hdfs`, `pyhive`
-- `psycopg2-binary`, `sqlalchemy` (PostgreSQL)
-- `streamlit`, `pandas`, `plotly` (tablero)
-- `apache-airflow` (orquestación)
-- `pytest`, `jupyter` (pruebas y notebook)
+| Categoría | Paquetes |
+|-----------|----------|
+| Ingesta | `requests` |
+| Procesamiento | `pyspark>=3.5.0` |
+| Servicio | `pg8000>=1.31.0`, `sqlalchemy>=1.4.36,<2.0` |
+| Tablero | `streamlit>=1.35.0`, `pandas>=2.2.0`, `plotly>=5.20.0` |
+| Orquestación | `apache-airflow>=2.9.0`, `pendulum>=3.0.0` |
+| Utilidades | `python-dotenv`, `pytest`, `jupyter`, `ipywidgets` |
+
+> **Nota:** `kafka-python`, `hdfs` y `pyhive` están en el código pero no son estrictamente necesarios para el flujo principal. Se importan condicionalmente con `try/except`.
 
 ---
 
-## Notas
+## 9 · Notas
 
-- Los contenedores de Spark son efímeros: se levantan bajo demanda y se borran al terminar.
-- Hive usa un metastore Derby embebido (adecuado para aprendizaje; en producción usar PostgreSQL/MySQL externo).
+- El `id_registro` se calcula como `SHA256(país + indicador + fecha)[:16]` para evitar duplicados al reejecutar la ingesta.
+- `generar_tablero.py` lee todos los JSONL de `datos/raw/` (incluyendo ejecuciones previas), por lo que el CSV acumulado crece con cada ingesta.
+- El tablero usa el CSV de respaldo si no hay PostgreSQL disponible; para usar PostgreSQL real, configura las variables de entorno `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`.
 - Las credenciales en `docker-compose.yml` son de ejemplo. En producción usar un archivo `.env` fuera del repositorio.

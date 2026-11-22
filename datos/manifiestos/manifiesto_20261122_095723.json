@@ -1,0 +1,15 @@
+{
+  "fecha_ejecucion": "2026-11-22T09:57:23.101443",
+  "url": "https://www.datos.gov.co/resource/32sa-8pi3.json",
+  "desde": "2026-10-23",
+  "hasta": "2026-11-22",
+  "parametros": {
+    "pagina_inicial": 1,
+    "tamano_pagina": 1000
+  },
+  "total_registros": 19,
+  "archivos_generados": [
+    "datos\\raw\\fecha_ingesta=2026-11-22\\trm_parte_2.jsonl"
+  ],
+  "estado": "exitoso"
+}
