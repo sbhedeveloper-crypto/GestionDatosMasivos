@@ -1,0 +1,52 @@
+# =============================================================================
+# .gitignore — Proyecto Pipeline de Datos
+# =============================================================================
+
+# Entorno virtual Python
+.venv/
+venv/
+env/
+ENV/
+.venv*/
+env*/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.so
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Datos generados (no versionar datasets completos)
+datos/raw/*.jsonl
+datos/servicio/*.csv
+datos/servicio/*.parquet
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+airflow-logs/
+
+# Docker
+.dockerignore
+
+# Cómo empaquetar
+dist/
+build/
+*.egg-info/
+*.egg

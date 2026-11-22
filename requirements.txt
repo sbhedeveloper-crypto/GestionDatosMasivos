@@ -1,0 +1,32 @@
+# =============================================================================
+# Proyecto Pipeline de Datos — Requerimientos (versión Windows compatible)
+# =============================================================================
+# Nota: kafka-python, hdfs y pyhive se omiten porque requieren compilación C
+# en Windows (dependen de sasl/thrift). El código fuente las importa
+# condicionalmente; el tablero Streamlit funciona sin ellas.
+
+# Fase 1-2: Ingesta y streaming (requests para llamadas HTTP a APIs)
+requests>=2.31.0
+
+# Fase 4-5: Procesamiento (PySpark tiene ruedas precompiladas para Windows)
+pyspark>=3.5.0
+
+# Fase 6: Zona de servicio (PostgreSQL)
+# pg8000 es driver puro Python: NO necesita pg_config ni compilación en Windows.
+pg8000>=1.31.0
+# sqlalchemy <2.0 para ser compatible con apache-airflow>=2.9.0
+sqlalchemy>=1.4.36,<2.0
+
+# Fase 7: Tablero Streamlit
+streamlit>=1.35.0
+pandas>=2.2.0
+plotly>=5.20.0
+altair>=5.3.0
+
+# Fase 8: Orquestación y utilidades
+apache-airflow>=2.9.0
+pendulum>=3.0.0
+python-dotenv>=1.0.0
+pytest>=8.0.0
+jupyter>=1.0.0
+ipywidgets>=8.1.0
