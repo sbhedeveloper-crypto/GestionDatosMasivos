@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sustentación — Proyecto Pipeline de Datos Masivos</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f172a;
+    --panel: #1e293b;
+    --accent: #38bdf8;
+    --text: #f8fafc;
+    --muted: #94a3b8;
+    --ok: #22c55e;
+    --warn: #f59e0b;
+  }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+  }
+
+  /* Presentación */
+  .deck {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+  }
+
+  .slide {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    padding: 40px 60px;
+    display: none;
+    flex-direction: column;
+    justify-content: space-between;
+    background: var(--bg);
+    box-sizing: border-box;
+    overflow-y: auto;
+  }
+  .slide.active { display: flex; }
+
+  /* Encabezado y pie de cada diapositiva */
+  .slide header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 12px;
+  }
+  .slide h2 {
+    font-size: 1.6rem;
+    color: var(--accent);
+    margin: 0;
+  }
+  .slide .chip {
+    font-size: 0.75rem;
+    background: var(--panel);
+    padding: 4px 10px;
+    border-radius: 4px;
+    color: var(--muted);
+    border: 1px solid var(--muted);
+  }
+  .slide .pagina {
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  /* Contenido */
+  .slide h3 { font-size: 1.15rem; margin: 16px 0 8px; color: var(--accent); }
+  .slide p { font-size: 0.95rem; line-height: 1.5; margin: 6px 0; color: var(--text); }
+  .slide ul, .slide ol { margin: 8px 0 8px 20px; color: var(--text); font-size: 0.95rem; }
+  .slide li { margin: 4px 0; line-height: 1.45; }
+
+  /* Tablas */
+  table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 0.85rem; }
+  th, td { border: 1px solid #334155; padding: 6px 8px; text-align: left; color: var(--text); }
+  th { background: var(--panel); color: var(--accent); }
+  tr:nth-child(even) td { background: #0f172a; }
+
+  /* Tarjetas */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 10px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid #334155;
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .card .t { font-weight: bold; color: var(--accent); font-size: 0.9rem; margin-bottom: 4px; }
+  .card .d { font-size: 0.8rem; color: var(--muted); }
+
+  /* Bloque de código */
+  pre {
+    background: #0f172a;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 0.8rem;
+    overflow-x: auto;
+    margin: 8px 0;
+    color: #e2e8f0;
+  }
+  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  /* Navegación */
+  .nav {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 100;
+  }
+  .nav button {
+    background: var(--panel);
+    border: 1px solid var(--muted);
+    color: var(--text);
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.85rem;
+  }
+  .nav button:hover { background: #334155; }
+  .nav button.active { background: var(--accent); color: #000; border-color: var(--accent); }
+  .nav button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Códigos de colores para componentes */
+  .comp { margin: 6px 0; padding: 8px; background: var(--panel); border-left: 3px solid var(--accent); border-radius: 4px; font-size: 0.85rem; }
+  .comp .nom { font-weight: bold; color: var(--accent); }
+  .comp .desc { color: var(--text); font-size: 0.85rem; }
+  .comp .archivo { font-family: ui-monospace, monospace; font-size: 0.75rem; color: #a78bfa; margin-top: 2px; }
+
+  .highlight { color: var(--ok); font-weight: bold; }
+
+  @media print {
+    .nav { display: none; }
+    .slide { display: block !important; page-break-after: always; }
+  }
+</style>
+</head>
+<body>
+
+<div class="deck">
+  <!-- ============================================================ -->
+  <!-- DIAPOSITIVA 1 — PORTADA -->
+  <!-- ============================================================ -->
+  <div class="slide active" id="s1">
+    <header>
+      <h2>Proyecto Pipeline de Datos Masivos</h2>
+      <div class="chip">Sustentación Académica</div>
+    </header>
+    <div style="flex:1; display:flex; flex-direction:column; justify-content:center;">
+      <h1 style="font-size:2.4rem; color:var(--accent); margin-bottom:12px;">Indicadores Macroeconómicos</h1>
+      <p style="font-size:1.1rem; color:var(--muted); max-width:700px; line-height:1.6;">
+        Pipeline de datos que ingesta indicadores desde la <strong>API del Banco Mundial (World Bank Open Data API v2)</strong>,
+        los procesa y los visualiza en un tablero de <strong>Streamlit</strong>.
+      </p>
+      <div style="margin-top:24px;">
+        <p><strong>Fuente:</strong> https://api.worldbank.org/v2</p>
+        <p><strong>Registros:</strong> 64,215 filas (49 países × 10 indicadores × 36 años)</p>
+        <p><strong>Columna de fecha:</strong> sí (campo <code>fecha</code>, año YYYY)</p>
+      </div>
+    </div>
+    <footer style="margin-top:auto; font-size:0.8rem; color:var(--muted); border-top:1px solid #334155; padding-top:12px;">
+      Proyecto de Gestión de Datos Masivos · Repositorio: github.com/sbhedeveloper-crypto/GestionDatosMasivos
+    </footer>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- DIAPOSITIVA 2 — FUENTE, PREGUNTA Y ARQUITECTURA -->
+  <!-- ============================================================ -->
+  <div class="slide" id="s2">
+    <header>
+      <h2>1 · Fuente, Pregunta y Arquitectura</h2>
+      <div class="chip">Diapositiva 2 de 8</div>
+    </header>
+    <div style="flex:1;">
+      <h3>📡 Fuente de datos abierta</h3>
+      <table>
+        <tr><th>Campo</th><th>Valor</th></tr>
+        <tr><td>API</td><td>Banco Mundial — World Bank Open Data API v2</td></tr>
+        <tr><td>URL</td><td>https://api.worldbank.org/v2</td></tr>
+        <tr><td>Registros</td><td>64,215 filas (cumple requisito 20,000+)</td></tr>
+        <tr><td>Columna de fecha</td><td>Sí, campo <code>fecha</code> (año YYYY)</td></tr>
+        <tr><td>Actualización</td><td>Periódica según indicador</td></tr>
+      </table>
+
+      <h3>🆔 Definición de id_registro</h3>
+      <pre>id_registro = SHA256(país + indicador + fecha)[:16]</pre>
+      <p>Garantiza unicidad al combinar país (ISO 3166-1), indicador y año, evitando duplicados al reejecutar la ingesta.</p>
+
+      <h3>❓ Pregunta principal</h3>
+      <p class="highlight">¿Cómo han evolucionado la inflación, el desempleo, el crecimiento del PIB, la población y otros indicadores macroeconómicos en Colombia y países de referencia durante las últimas tres décadas, y cómo se comparan frente al promedio mundial?</p>
+
+      <h3>👥 Quién usaría los indicadores</h3>
+      <div class="cards">
+        <div class="card"><div class="t">Analistas financieros</div><div class="d">Modelos de valuación, riesgo país y cobertura cambiaria.</div></div>
+        <div class="card"><div class="t">Importadores / Exportadores</div><div class="d">Planificación de costos en divisas y estrategia comercial.</div></div>
+        <div class="card"><div class="t">Economistas</div><div class="d">Seguimiento de política monetaria, fiscal y estructural.</div></div>
+        <div class="card"><div class="t">Estudiantes / Inversionistas</div><div class="d">Trabajos de grado, asignación de activos y mercados emergentes.</div></div>
+      </div>
+    </div>
+    <footer style="margin-top:auto; font-size:0.8rem; color:var(--muted); border-top:1px solid #334155; padding-top:12px;">
+      Proyecto Pipeline de Datos Masivos · 2 de 8
+    </footer>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- DIAPOSITIVA 3 — DIAGRAMA DE ARQUITECTURA -->
+  <!-- ============================================================ -->
+  <div class="slide" id="s3">
+    <header>
+      <h2>2 · Diagrama de Arquitectura por Zonas</h2>
+      <div class="chip">Diapositiva 3 de 8</div>
+    </header>
+    <div style="flex:1; display:flex; flex-direction:column;">
+      <div style="flex:1; background:var(--panel); border:1px solid #334155; border-radius:8px; padding:20px; overflow:auto;">
+        <pre style="font-size:0.85rem; line-height:1.4; color:#e2e8f0;">
+graph LR
+    subgraph Fuentes["Fuente de datos abierta"]
+        A[Banco Mundial API v2<br/>api.worldbank.org/v2] --> B[Ingesta]
+    end
+
+    subgraph ZonaRaw["Zona Raw (Bronze)"]
+        B --> C[src/ingest.py<br/>JSONL particionado por fecha_ingesta]
+    end
+
+    subgraph ZonaCurada["Zona Curada (Silver)"]
+        C --> D[src/spark_curar.py<br/>Limpieza y deduplicación]
+    end
+
+    subgraph ZonaServicio["Zona de Servicio (Gold)"]
+        D --> E[src/generar_tablero.py<br/>CSV para tablero]
+    end
+
+    subgraph Consumo["Consumo"]
+        E --> F[app/streamlit_app.py<br/>Tablero interactivo]
+    end
+
+    subgraph Orquestacion["Orquestación"]
+        G[Airflow DAG diario<br/>7:00 a. m. Bogota] -->|programa| C
+        G -->|programa| E
+        G -->|programa| F
+    end
+        </pre>
+      </div>
+      <div style="margin-top:14px;">
+        <h3>⚡ ¿Lambda o Kappa?</h3>
+        <p class="highlight">Tipo Kappa.</p>
+        <ul>
+          <li>Un solo flujo unificado: API → JSONL (raw) → CSV (servicio) → Streamlit.</li>
+          <li>No hay dos pipelines paralelos (batch + speed).</li>
+          <li>Los JSONL en <code>datos/raw/</code> actúan como registro inmutable de entrada.</li>
+          <li>El reprocesamiento se logra reejecutando <code>ingest.py</code> sobre el mismo rango de fechas.</li>
+        </ul>
+      </div>
+    </div>
+    <footer style="margin-top:auto; font-size:0.8rem; color:var(--muted); border-top:1px solid #334155; padding-top:12px;">
+      Proyecto Pipeline de Datos Masivos · 3 de 8
+    </footer>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- DIAPOSITIVA 4 — FLUJO DE DATOS (FASES 1-7) -->
+  <!-- ============================================================ -->
+  <div class="slide" id="s4">
+    <header>
+      <h2>3 · Flujo de Datos — Fases 1 a 7</h2>
+      <div class="chip">Diapositiva 4 de 8</div>
+    </header>
+    <div style="flex:1;">
+      <table>
+        <tr><th>Fase</th><th>Componente</th><th>Acción</th><th>Entrada</th><th>Salida</th></tr>
+        <tr>
+          <td>1</td><td><code>src/ingest.py</code></td><td>Ingesta desde API con paginación y reintentos</td><td>api.worldbank.org/v2</td><td>JSONL en <code>datos/raw/</code></td>
+        </tr>
+        <tr>
+          <td>2</td><td><code>src/spark_curar.py</code></td><td>Limpieza, eliminar duplicados, validar esquema</td><td>JSONL raw</td><td>Datos curados (sin duplicados)</td>
+        </tr>
+        <tr>
+          <td>3</td><td><code>src/generar_tablero.py</code></td><td>Generar CSV y JSON agregado</td><td>Datos curados</td><td><code>indicadores_servicio.csv</code></td>
+        </tr>
+        <tr>
+          <td>4</td><td><code>app/streamlit_app.py</code></td><td>Tablero interactivo con filtros y descarga</td><td>CSV de servicio</td><td>Visualización en navegador</td>
+        </tr>
+        <tr>
+          <td>5</td><td><code>airflow/dags/indicadores_diario.py</code></td><td>Orquestación diaria programada</td><td>—</td><td>Ejecución automática 7:00 a. m.</td>
+        </tr>
+        <tr>
+          <td>6</td><td><code>src/kafka_producer.py</code> / <code>kafka_consumer.py</code></td><td>Publicar y consumir en Kafka</td><td>JSONL raw</td><td>Tópico <code>indicadores.raw</code></td>
+        </tr>
+        <tr>
+          <td>7</td><td><code>src/hdfs_writer.py</code> / <code>hive_tablas.py</code></td><td>Data lake HDFS y tablas externas Hive</td><td>Mensajes Kafka</td><td>Capa bronze en HDFS</td>
+        </tr>
+      </table>
+    </div>
+    <footer style="margin-top:auto; font-size:0.8rem; color:var(--muted); border-top:1px solid #334155; padding-top:12px;">
+      Proyecto Pipeline de Datos Masivos · 4 de 8
+    </footer>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- DIAPOSITIVA 5 — COMPONENTE INGESTA -->
+  <!-- ============================================================ -->
+  <div class="slide" id="s5">
+    <header>
+      <h2>4 · Componente: Ingesta (Fase 1)</h2>
+      <div class="chip">Diapositiva 5 de 8</div>
+    </header>
+    <div style="flex:1;">
+      <div class="comp">
+        <div class="nom">src/ingest.py</div>
+        <div class="archivo">src/ingest.py</div>
+        <div class="desc">Descarga indicadores macroeconómicos de la API del Banco Mundial con paginación, reintentos automáticos y filtrado local por rango de fechas. Calcula <code>id_registro</code> para evitar duplicados y escribe JSONL particionado por <code>fecha_ingesta=AAAA-MM-DD</code>.</div>
+      </div>
+
+      <h3>Flujo de ejecución</h3>
+      <ol>
+        <li>Itera sobre 49 países × 10 indicadores (inflación, desempleo, PIB, población, esperanza de vida, comercio, tipo de cambio, remesas, CO₂).</li>
+        <li>Para cada combinación, consulta la API con paginación (<code>$limit</code>, <code>$offset</code>).</li>
+        <li>Si hay timeout, reintenta automáticamente hasta 5 veces con retroceso exponencial.</li>
+        <li>Filtra por rango de fechas localmente (evita errores 400 del servidor).</li>
+        <li>Escribe JSONL en carpetas particionadas y genera un <strong>manifiesto JSON</strong> por ejecución.</li>
+      </ol>
+
+      <pre>python src/ingest.py
+# Resultado: ~14,112 registros por ejecución
+# Acumulado en CSV: 64,215 filas</pre>
+
+      <div class="cards">
+        <div class="card"><div class="t">49 países</div><div class="d">COL, BRA, MEX, CHL, PER, ARG, USA, CAN y más.</div></div>
+        <div class="card"><div class="t">10 indicadores</div><div class="d">Inflación, desempleo, PIB, población, etc.</div></div>
+        <div class="card"><div class="t">36 años</div><div class="d">1990 a 2026.</div></div>
+        <div class="card"><div class="t">~22,200 teórico</div><div class="d">Registros máximos esperados.</div></div>
+      </div>
+    </div>
+    <footer style="margin-top:auto; font-size:0.8rem; color:var(--muted); border-top:1px solid #334155; padding-top:12px;">
+      Proyecto Pipeline de Datos Masivos · 5 de 8
+    </footer>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- DIAPOSITIVA 6 — COMPONENTES CURADO, TABLERO, STREAMLIT -->
+  <!-- ============================================================ -->
+  <div class="slide" id="s6">
+    <header>
+      <h2>5 · Componentes: Curado, Tablero y Servicio (Fases 2-4)</h2>
+      <div class="chip">Diapositiva 6 de 8</div>
+    </header>
+    <div style="flex:1;">
+      <div class="comp">
+        <div class="nom">src/spark_curar.py</div>
+        <div class="archivo">src/spark_curar.py</div>
+        <div class="desc">Limpia los JSONL con PySpark: elimina nulos, elimina duplicados por <code>id_registro</code>, valida esquema y ordena por fecha. Compara estilo MapReduce (RDD) vs DataFrame API.</div>
+      </div>
+      <div class="comp">
+        <div class="nom">src/generar_tablero.py</div>
+        <div class="archivo">src/generar_tablero.py</div>
+        <div class="desc">Lee todos los JSONL de la zona raw, los normaliza a DataFrame y genera <code>indicadores_servicio.csv</code> y <code>indicadores_agregados.json</code> para el tablero. No requiere PostgreSQL.</div>
+      </div>
+      <div class="comp">
+        <div class="nom">app/streamlit_app.py</div>
+        <div class="archivo">app/streamlit_app.py</div>
+        <div class="desc">Tablero interactivo que lee el CSV de servicio. Incluye filtros por indicador, país y fecha; gráficos de series temporales (Plotly), barras de promedio por país, tabla detallada y botón <strong>🔄 Refrescar datos</strong> que limpia el caché y recarga sin recargar la página.</div>
+      </div>
+
+      <h3>Resultado en el tablero</h3>
+      <ul>
+        <li><strong>64,215 registros</strong> disponibles en el CSV de servicio.</li>
+        <li><strong>1,117 filas</strong> de agregados por país, indicador, año y mes.</li>
+        <li>Ejecutar con: <code>python -m streamlit run app/streamlit_app.py --server.port 8502</code></li>
+        <li>Acceder en: <code>http://localhost:8502</code></li>
+      </ul>
+    </div>
+    <footer style="margin-top:auto; font-size:0.8rem; color:var(--muted); border-top:1px solid #334155; padding-top:12px;">
+      Proyecto Pipeline de Datos Masivos · 6 de 8
+    </footer>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- DIAPOSITIVA 7 — EVIDENCIAS Y RESULTADOS -->
+  <!-- ============================================================ -->
+  <div class="slide" id="s7">
+    <header>
+      <h2>6 · Evidencias y Resultados</h2>
+      <div class="chip">Diapositiva 7 de 8</div>
+    </header>
+    <div style="flex:1;">
+      <h3>📊 Volumen de datos</h3>
+      <div class="cards">
+        <div class="card"><div class="t">64,215 filas</div><div class="d">En <code>indicadores_servicio.csv</code></div></div>
+        <div class="card"><div class="t">1,117 filas</div><div class="d">En <code>indicadores_agregados.json</code></div></div>
+        <div class="card"><div class="t">6 manifiestos</div><div class="d">En <code>datos/manifiestos/</code></div></div>
+        <div class="card"><div class="t">49 países</div><div class="c">Incluyendo WLD (promedio mundial)</div></div>
+      </div>
+
+      <h3>📁 Archivos generados</h3>
+      <table>
+        <tr><th>Ruta</th><th>Contenido</th><th>Filas</th></tr>
+        <tr><td><code>datos/raw/fecha_ingesta=*/indicadores_parte_*.jsonl</code></td><td>Zona raw (JSONL de la API)</td><td>~14,112 por ejecución</td></tr>
+        <tr><td><code>datos/servicio/indicadores_servicio.csv</code></td><td>Zona de servicio para el tablero</td><td>64,215 acumuladas</td></tr>
+        <tr><td><code>datos/servicio/indicadores_agregados.json</code></td><td>Agregados por país/indicador/año/mes</td><td>1,117</td></tr>
+        <tr><td><code>datos/manifiestos/manifiesto_*.json</code></td><td>Metadatos de cada ejecución</td><td>6 archivos</td></tr>
+      </table>
+
+      <h3>✅ Idempotencia</h3>
+      <p>Al reejecutar <code>ingest.py</code>, el campo <code>id_registro</code> evita escribir duplicados en la zona curada.</p>
+    </div>
+    <footer style="margin-top:auto; font-size:0.8rem; color:var(--muted); border-top:1px solid #334155; padding-top:12px;">
+      Proyecto Pipeline de Datos Masivos · 7 de 8
+    </footer>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- DIAPOSITIVA 8 — CONCLUSIONES Y DESPLIEGUE -->
+  <!-- ============================================================ -->
+  <div class="slide" id="s8">
+    <header>
+      <h2>7 · Conclusiones y Despliegue</h2>
+      <div class="chip">Diapositiva 8 de 8</div>
+    </header>
+    <div style="flex:1;">
+      <h3>✅ Lo logrado</h3>
+      <ul>
+        <li>Conexión a API abierta del Banco Mundial con paginación y reintentos.</li>
+        <li>Más de 20,000 registros (64,215 en CSV acumulado).</li>
+        <li>Arquitectura tipo Kappa con un solo flujo unificado.</li>
+        <li>Tablero Streamlit funcional con filtros, gráficos y descarga.</li>
+        <li>Código corregido para funcionar en Windows sin PostgreSQL (usa pg8000 y CSV de respaldo).</li>
+      </ul>
+
+      <h3>🚀 Cómo ejecutar desde cero</h3>
+      <pre>
+cd D:\Protect\Cronos_Tech\Documents\Onix\proyecto_pipeline_datos
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python src/ingest.py
+python src/generar_tablero.py
+python -m streamlit run app/streamlit_app.py --server.port 8502
+      </pre>
+
+      <h3>📦 Repositorio GitHub</h3>
+      <p><a href="https://github.com/sbhedeveloper-crypto/GestionDatosMasivos" style="color:var(--accent); text-decoration:underline;">github.com/sbhedeveloper-crypto/GestionDatosMasivos</a></p>
+
+      <h3>⚠️ Limitaciones conocidas</h3>
+      <ul>
+        <li>Streamlit no tiene "push" nativo; el botón Refrescar datos recarga manualmente.</li>
+        <li>Para tiempo real verdadero se necesitaría consumidor Kafka continuo + base de datos remota.</li>
+        <li>Los JSONL de zona raw no se suben a GitHub por tamaño; se regeneran con la ingesta.</li>
+      </ul>
+
+      <div style="margin-top:20px; text-align:center; font-size:1.2rem; color:var(--accent);">
+        ¡Gracias por su atención!<br>
+        <span style="font-size:0.9rem; color:var(--muted);">Proyecto de Gestión de Datos Masivos</span>
+      </div>
+    </div>
+    <footer style="margin-top:auto; font-size:0.8rem; color:var(--muted); border-top:1px solid #334155; padding-top:12px;">
+      Proyecto Pipeline de Datos Masivos · 8 de 8
+    </footer>
+  </div>
+
+  <!-- ============================================================ -->
+  <!-- NAVEGACIÓN -->
+  <!-- ============================================================ -->
+  <div class="nav">
+    <button id="btnPrev" onclick="cambiarDiapositiva(-1)" disabled>◀ Anterior</button>
+    <div id="indicador" style="background:var(--panel); border:1px solid var(--muted); color:var(--muted); padding:6px 12px; border-radius:4px; font-size:0.8rem;">1 / 8</div>
+    <button id="btnNext" onclick="cambiarDiapositiva(1)">Siguiente ▶</button>
+  </div>
+
+<script>
+  const total = 8;
+  let actual = 1;
+
+  function mostrar(n) {
+    if (n < 1) n = 1;
+    if (n > total) n = total;
+    actual = n;
+
+    // Ocultar todas
+    document.querySelectorAll('.slide').forEach(s => s.classList.remove('active'));
+    document.getElementById('s' + n).classList.add('active');
+
+    // Actualizar botones
+    document.getElementById('btnPrev').disabled = (n === 1);
+    document.getElementById('btnNext').disabled = (n === total);
+    document.getElementById('indicador').textContent = n + ' / ' + total;
+
+    // Actualizar botones activos
+    document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+  }
+
+  function cambiarDiapositiva(delta) {
+    mostrar(actual + delta);
+  }
+
+  // Navegación con teclado
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ') cambiarDiapositiva(1);
+    if (e.key === 'ArrowLeft') cambiarDiapositiva(-1);
+  });
+
+  // Inicializar
+  mostrar(1);
+</script>
+</body>
+</html>
