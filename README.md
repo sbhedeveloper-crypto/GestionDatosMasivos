@@ -54,29 +54,29 @@ id_registro = SHA256(país + indicador + fecha)[:16]
 ## 2 · Diagrama de arquitectura por zonas
 
 ```mermaid
-flowchart LR
-    subgraph Fuentes["📡 Fuente de datos abierta<br/>Banco Mundial API v2"]
-        A[api.worldbank.org/v2<br/>indicadores macroeconómicos<br/>49 países × 10 indicadores] --> B[Ingesta]
+graph LR
+    subgraph Fuentes["Fuente de datos abierta"]
+        A[Banco Mundial API v2<br/>api.worldbank.org/v2] --> B[Ingesta]
     end
 
-    subgraph ZonaRaw["🥉 Zona Raw (Bronze)<br/>JSONL particionado por fecha_ingesta"]
-        B --> C[src/ingest.py<br/>Paginación + reintentos<br/>datos/raw/fecha_ingesta=AAAA-MM-DD/]
+    subgraph ZonaRaw["Zona Raw (Bronze)"]
+        B --> C[src/ingest.py<br/>JSONL particionado]
     end
 
-    subgraph ZonaCurada["🥈 Zona Curada (Silver)<br/>Limpieza y deduplicación"]
-        C --> D[src/spark_curar.py<br/>PySpark:<br/>- Eliminar duplicados (id_registro)<br/>- Validar esquema<br/>- Ordenar por fecha]
+    subgraph ZonaCurada["Zona Curada (Silver)"]
+        C --> D[src/spark_curar.py<br/>Limpieza y deduplicación]
     end
 
-    subgraph ZonaServicio["🥇 Zona de Servicio (Gold)<br/>Datos listos para consumo"]
-        D --> E[src/generar_tablero.py<br/>CSV + JSON agregado<br/>datos/servicio/indicadores_servicio.csv]
+    subgraph ZonaServicio["Zona de Servicio (Gold)"]
+        D --> E[src/generar_tablero.py<br/>CSV para tablero]
     end
 
-    subgraph Consumo["📊 Consumo<br/>Tablero Streamlit"]
-        E --> F[app/streamlit_app.py<br/>Filtros, gráficos, tabla,<br/>botón Refrescar datos, descarga CSV]
+    subgraph Consumo["Consumo"]
+        E --> F[app/streamlit_app.py<br/>Tablero interactivo]
     end
 
-    subgraph Orquestacion["⏰ Orquestación<br/>Apache Airflow"]
-        G[DAG diario<br/>indicadores_diario.py<br/>7:00 a. m. America/Bogota] -->|programa| C
+    subgraph Orquestacion["Orquestación"]
+        G[Airflow DAG diario<br/>7:00 a. m. Bogota] -->|programa| C
         G -->|programa| E
         G -->|programa| F
     end
